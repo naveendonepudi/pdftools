@@ -1,4 +1,3 @@
-import './style.css';
 import { App, MOD } from './app';
 import { hydrateIcons } from './ui/icons';
 

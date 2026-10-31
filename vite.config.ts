@@ -2,7 +2,10 @@
 import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'parse5';
+import type { DefaultTreeAdapterMap } from 'parse5';
 import { defineConfig, type Plugin } from 'vite';
+import { icon } from './src/ui/icons';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const pdfjsDir = resolve(root, 'node_modules/pdfjs-dist');
@@ -21,6 +24,31 @@ function walk(dir: string): string[] {
     const file = join(dir, name);
     return statSync(file).isDirectory() ? walk(file) : [file];
   });
+}
+
+function initialIcons(): Plugin {
+  return {
+    name: 'initial-icons',
+    transformIndexHtml(html) {
+      const replacements: { start: number; end: number; svg: string }[] = [];
+      const visit = (node: DefaultTreeAdapterMap['node']): void => {
+        if ('tagName' in node && node.tagName === 'i') {
+          const name = node.attrs.find((attribute) => attribute.name === 'data-icon')?.value;
+          const location = node.sourceCodeLocation;
+          if (name && location) {
+            const size = Number(node.attrs.find((attribute) => attribute.name === 'data-size')?.value) || 18;
+            replacements.push({ start: location.startOffset, end: location.endOffset, svg: icon(name, size) });
+          }
+        }
+        if ('childNodes' in node) node.childNodes.forEach(visit);
+      };
+      visit(parse(html, { sourceCodeLocationInfo: true }));
+      for (const replacement of replacements.sort((first, second) => second.start - first.start)) {
+        html = html.slice(0, replacement.start) + replacement.svg + html.slice(replacement.end);
+      }
+      return html;
+    },
+  };
 }
 
 /** Serves (dev) and bundles (build) the pdf.js assets under `/pdfjs/` so they are self-hosted. */
@@ -81,7 +109,7 @@ function contentSecurityPolicy(): Plugin {
 
 export default defineConfig({
   base: './',
-  plugins: [pdfjsAssets(), contentSecurityPolicy()],
+  plugins: [initialIcons(), pdfjsAssets(), contentSecurityPolicy()],
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1200,
