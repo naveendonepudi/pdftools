@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="A private, fast PDF editor that runs entirely in your browser. Sign, merge, split, insert and remove pages. Your files never leave your device."
+    />
+    <title>PDF Tools — private PDF editor</title>
+  </head>
+  <body>
+    <div id="app" class="app is-empty">
+      <header class="toolbar" role="toolbar" aria-label="Document tools">
+        <div class="toolbar-group">
+          <button class="icon-btn" id="btn-sidebar" title="Show/hide thumbnails" aria-label="Show or hide thumbnails" aria-pressed="true" data-needs-doc>
+            <i data-icon="sidebar"></i>
+          </button>
+          <div class="doc-title">
+            <span id="doc-name" class="doc-name">PDF Tools</span>
+            <span id="doc-meta" class="doc-meta"></span>
+          </div>
+        </div>
+
+        <div class="toolbar-group toolbar-center">
+          <button class="tool-btn" id="btn-open" title="Open PDF (⌘O)"><i data-icon="open"></i><span>Open</span></button>
+          <span class="divider"></span>
+          <button class="tool-btn" id="btn-merge" title="Merge: add PDFs or images to the end" data-needs-doc><i data-icon="merge"></i><span>Merge</span></button>
+          <button class="tool-btn" id="btn-insert" title="Insert pages from a file or a blank page" data-needs-doc><i data-icon="insert"></i><span>Insert</span></button>
+          <button class="tool-btn" id="btn-split" title="Split into several PDFs" data-needs-doc><i data-icon="split"></i><span>Split</span></button>
+          <button class="tool-btn" id="btn-sign" title="Add your signature" data-needs-doc><i data-icon="sign"></i><span>Sign</span></button>
+          <span class="divider"></span>
+          <button class="icon-btn" id="btn-rotate-left" title="Rotate left" aria-label="Rotate selected pages left" data-needs-selection><i data-icon="rotateLeft"></i></button>
+          <button class="icon-btn" id="btn-rotate-right" title="Rotate right" aria-label="Rotate selected pages right" data-needs-selection><i data-icon="rotateRight"></i></button>
+          <button class="icon-btn danger" id="btn-delete" title="Delete selected pages (⌫)" aria-label="Delete selected pages" data-needs-selection><i data-icon="trash"></i></button>
+          <span class="divider"></span>
+          <button class="icon-btn" id="btn-undo" title="Undo (⌘Z)" aria-label="Undo" disabled><i data-icon="undo"></i></button>
+          <button class="icon-btn" id="btn-redo" title="Redo (⇧⌘Z)" aria-label="Redo" disabled><i data-icon="redo"></i></button>
+        </div>
+
+        <div class="toolbar-group toolbar-end">
+          <div class="zoom" data-needs-doc>
+            <button class="icon-btn" id="btn-zoom-out" title="Zoom out (⌘−)" aria-label="Zoom out" data-needs-doc><i data-icon="zoomOut"></i></button>
+            <button class="zoom-value" id="btn-zoom-fit" title="Fit to width (⌘0)" data-needs-doc>100%</button>
+            <button class="icon-btn" id="btn-zoom-in" title="Zoom in (⌘+)" aria-label="Zoom in" data-needs-doc><i data-icon="zoomIn"></i></button>
+          </div>
+          <button class="primary-btn" id="btn-download" title="Download PDF (⌘S)" data-needs-doc><i data-icon="download"></i><span>Download</span></button>
+        </div>
+      </header>
+
+      <button class="privacy-pill" id="btn-privacy" type="button">
+        <i data-icon="lock" data-size="14"></i>
+        <span>100% on-device · We don't track or read your data</span>
+      </button>
+
+      <main class="workspace">
+        <aside class="sidebar" id="sidebar" aria-label="Pages">
+          <div class="thumbs" id="thumbs" role="listbox" aria-label="Page thumbnails" aria-multiselectable="true" tabindex="0"></div>
+          <div class="drop-indicator" id="drop-indicator" hidden></div>
+        </aside>
+
+        <section class="viewer" id="viewer" aria-label="Document">
+          <div class="pages" id="pages"></div>
+        </section>
+
+        <section class="empty" id="empty">
+          <div class="dropzone" id="dropzone">
+            <div class="dropzone-icon"><i data-icon="file" data-size="40"></i></div>
+            <h1>Edit PDFs privately, right in your browser</h1>
+            <p class="lead">Sign, merge, split, insert and remove pages — fast, simple and free.</p>
+            <button class="primary-btn large" id="btn-choose"><i data-icon="upload"></i><span>Choose PDF</span></button>
+            <p class="hint">or drop PDFs and images here · select several files to merge them</p>
+          </div>
+
+          <ul class="features" aria-label="Features">
+            <li><i data-icon="sign" data-size="20"></i><strong>Sign</strong><span>Draw, type or upload your signature</span></li>
+            <li><i data-icon="merge" data-size="20"></i><strong>Merge</strong><span>Combine PDFs and images</span></li>
+            <li><i data-icon="split" data-size="20"></i><strong>Split</strong><span>By ranges or every N pages</span></li>
+            <li><i data-icon="insert" data-size="20"></i><strong>Insert</strong><span>Add pages anywhere</span></li>
+            <li><i data-icon="trash" data-size="20"></i><strong>Remove</strong><span>Delete pages you don't need</span></li>
+            <li><i data-icon="rotateRight" data-size="20"></i><strong>Reorder</strong><span>Drag, drop &amp; rotate pages</span></li>
+          </ul>
+
+          <section class="privacy-card" aria-labelledby="privacy-title">
+            <i data-icon="shield" data-size="28"></i>
+            <div>
+              <h2 id="privacy-title">Your files stay yours</h2>
+              <p>
+                Everything happens on your device. Your documents are <strong>never uploaded</strong>, and we
+                <strong>don't track, store or read your data</strong> — no accounts, no cookies, no analytics.
+              </p>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <div class="file-drop-overlay" id="file-drop-overlay" aria-hidden="true">
+        <div><i data-icon="upload" data-size="36"></i><p id="file-drop-text">Drop to open</p></div>
+      </div>
+    </div>
+
+    <div class="busy" id="busy" role="status" aria-live="polite">
+      <div class="busy-card"><span class="spinner"></span><span id="busy-text">Working…</span></div>
+    </div>
+    <div class="toasts" id="toasts" aria-live="polite"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
