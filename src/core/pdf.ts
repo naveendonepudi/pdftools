@@ -1,4 +1,4 @@
-import { decryptPDF, isEncrypted } from '@pdfsmaller/pdf-decrypt';
+import { decryptPDF } from '@pdfsmaller/pdf-decrypt';
 import { PDFDocument, PageSizes, degrees, popGraphicsState, pushGraphicsState } from 'pdf-lib';
 import type { PDFImage, PDFPage } from 'pdf-lib';
 import { imageAnchor, normalizeRotation } from './geometry';
@@ -18,29 +18,37 @@ export class EncryptedPdfError extends Error {
   }
 }
 
+export async function loadPdfSource(bytes: Uint8Array, password = ''): Promise<{ doc: PDFDocument; bytes: Uint8Array }> {
+  try {
+    const doc = await PDFDocument.load(bytes, { updateMetadata: false });
+    return { doc, bytes };
+  } catch (err) {
+    if (!(err instanceof Error && err.message.startsWith('Input document to `PDFDocument.load` is encrypted.'))) {
+      throw err;
+    }
+  }
+
+  let decrypted: Uint8Array;
+  try {
+    decrypted = await decryptPDF(bytes, password);
+  } catch (err) {
+    if (err instanceof Error && /incorrect password/i.test(err.message)) {
+      throw new EncryptedPdfError(true, password.length > 0);
+    }
+    throw new EncryptedPdfError();
+  }
+  const doc = await PDFDocument.load(decrypted, { updateMetadata: false });
+  return { doc, bytes: decrypted };
+}
+
 /** Decrypts encrypted PDF bytes with the provided password, or an empty password by default. */
 export async function decryptPdfBytes(bytes: Uint8Array, password = ''): Promise<Uint8Array> {
-  try {
-    if (!(await isEncrypted(bytes)).encrypted) return bytes;
-    try {
-      return await decryptPDF(bytes, password);
-    } catch (err) {
-      if (err instanceof Error && /incorrect password/i.test(err.message)) {
-        throw new EncryptedPdfError(true, password.length > 0);
-      }
-      throw new EncryptedPdfError();
-    }
-  } catch (err) {
-    if (err instanceof Error && err.message.startsWith('Input document to `PDFDocument.load` is encrypted.')) {
-      throw new EncryptedPdfError();
-    }
-    throw err;
-  }
+  return (await loadPdfSource(bytes, password)).bytes;
 }
 
 /** Parses PDF bytes, decrypting files when needed. */
 export async function loadPdf(bytes: Uint8Array, password = ''): Promise<PDFDocument> {
-  return PDFDocument.load(await decryptPdfBytes(bytes, password), { updateMetadata: false });
+  return (await loadPdfSource(bytes, password)).doc;
 }
 
 /** Creates page references for every page of a parsed source document. */

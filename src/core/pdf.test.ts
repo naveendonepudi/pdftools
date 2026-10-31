@@ -1,7 +1,7 @@
 import { encryptPDF } from '@pdfsmaller/pdf-encrypt';
 import { PDFDocument, PDFName, degrees } from 'pdf-lib';
-import { describe, expect, it } from 'vitest';
-import { buildPdf, createBlankPdf, createImagePdf, decryptPdfBytes, describePages, loadPdf } from './pdf';
+import { describe, expect, it, vi } from 'vitest';
+import { buildPdf, createBlankPdf, createImagePdf, decryptPdfBytes, describePages, loadPdf, loadPdfSource } from './pdf';
 import type { Signature } from './types';
 
 const PNG_1X1 =
@@ -97,6 +97,19 @@ describe('page factories', () => {
 });
 
 describe('loadPdf', () => {
+  it('parses an unencrypted import only once and reuses its original preview bytes', async () => {
+    const bytes = await createBlankPdf();
+    const load = vi.spyOn(PDFDocument, 'load');
+    try {
+      const source = await loadPdfSource(bytes);
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(source.bytes).toBe(bytes);
+      expect(source.doc.getPageCount()).toBe(1);
+    } finally {
+      load.mockRestore();
+    }
+  });
+
   it('rejects invalid data', async () => {
     await expect(loadPdf(new Uint8Array([1, 2, 3]))).rejects.toThrow();
   });

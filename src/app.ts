@@ -1,7 +1,7 @@
 import type { PDFDocument } from 'pdf-lib';
 import { zipSync } from 'fflate';
 import { clamp, displaySize, fromDisplay, toDisplay, totalRotation } from './core/geometry';
-import { buildPdf, createBlankPdf, createImagePdf, decryptPdfBytes, describePages, EncryptedPdfError, loadPdf } from './core/pdf';
+import { buildPdf, createBlankPdf, createImagePdf, describePages, EncryptedPdfError, loadPdfSource } from './core/pdf';
 import { formatPages } from './core/ranges';
 import { DocStore, insertPages, movePages, removePages, rotatePages } from './core/store';
 import type { DocState, PageRef, Signature } from './core/types';
@@ -138,12 +138,12 @@ export class App {
     if (kind === 'png' || kind === 'jpg') bytes = await createImagePdf(bytes, kind);
     else if (kind === 'image') bytes = await createImagePdf(await imageToPng(file), 'png');
     else if (kind !== 'pdf') throw new Error('is not a PDF or image');
-    bytes = await decryptPdfBytes(bytes, password);
-    const doc = await loadPdf(bytes);
+    const source = await loadPdfSource(bytes, password);
+    const doc = source.doc;
     if (doc.getPageCount() === 0) throw new Error('has no pages');
     const sourceId = uid('s');
     this.docs.set(sourceId, doc);
-    this.renderer.add(sourceId, bytes);
+    this.renderer.add(sourceId, source.bytes);
     return describePages(doc, sourceId, () => uid('p'));
   }
 
@@ -490,7 +490,7 @@ export class App {
         el = document.createElement('div');
         el.className = 'page';
         el.dataset.id = page.id;
-        el.innerHTML = '<div class="sig-layer"></div>';
+        el.innerHTML = '<div class="page-status" role="status"><span class="spinner"></span><span>Loading page...</span></div><div class="sig-layer"></div>';
         this.pageEls.set(page.id, el);
         this.pageObserver.observe(el);
       }

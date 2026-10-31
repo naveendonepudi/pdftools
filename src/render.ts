@@ -56,9 +56,15 @@ export class Renderer {
     state.key = key;
     this.hosts.set(host, state);
 
+    const status = host.querySelector<HTMLElement>('.page-status');
+    if (status && !host.querySelector('canvas')) {
+      status.hidden = false;
+      status.innerHTML = '<span class="spinner"></span><span>Loading page...</span>';
+    }
+    host.setAttribute('aria-busy', 'true');
     const loading = this.docs.get(page.sourceId);
-    if (!loading) return;
     try {
+      if (!loading) throw new Error('PDF preview source is unavailable');
       const doc = await loading.promise;
       const pdfPage = await doc.getPage(page.index + 1);
       if (state.key !== key) return;
@@ -80,9 +86,18 @@ export class Renderer {
       if (old) old.replaceWith(canvas);
       else host.prepend(canvas);
       if (old) releaseCanvas(old);
+      if (status) status.hidden = true;
+      host.setAttribute('aria-busy', 'false');
     } catch (err) {
       if (err instanceof RenderingCancelledException) return;
-      if (state.key === key) state.key = '';
+      if (state.key === key) {
+        state.key = '';
+        host.setAttribute('aria-busy', 'false');
+        if (status && !host.querySelector('canvas')) {
+          status.hidden = false;
+          status.textContent = 'Could not load this page.';
+        }
+      }
       console.error(err);
     }
   }
@@ -99,6 +114,12 @@ export class Renderer {
     if (canvas) {
       canvas.remove();
       releaseCanvas(canvas);
+    }
+    host.setAttribute('aria-busy', 'false');
+    const status = host.querySelector<HTMLElement>('.page-status');
+    if (status) {
+      status.hidden = false;
+      status.innerHTML = '<span class="spinner"></span><span>Loading page...</span>';
     }
   }
 }

@@ -505,6 +505,22 @@ i[data-size="40"] {
   contain: strict;
 }
 
+.page-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  color: var(--text-2);
+  background: var(--surface);
+  font-size: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+
 .sig-layer {
   position: absolute;
   inset: 0;
