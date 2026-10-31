@@ -1,7 +1,48 @@
 import { PageSizes } from 'pdf-lib';
 import { chunkPages, formatPages, parseRanges } from '../core/ranges';
-import { openModal } from './dom';
+import { escapeHtml, openModal } from './dom';
 import { icon } from './icons';
+
+/* ----------------------------------------------------------- PDF password */
+
+export function openPdfPasswordDialog(fileName: string, incorrect = false): Promise<string | null> {
+  const modal = openModal(
+    'Password required',
+    `
+    <p class="note" id="pdf-password-hint">Enter the password for <strong>${escapeHtml(fileName)}</strong>. It is used only for this import.</p>
+    ${incorrect ? '<p class="error" id="pdf-password-error" role="alert">That password did not work. Try again.</p>' : ''}
+    <div class="field">
+      <label class="field-label" for="pdf-password">PDF password</label>
+      <input id="pdf-password" class="text-input" type="password" autocomplete="off" required aria-describedby="pdf-password-hint${incorrect ? ' pdf-password-error' : ''}" />
+    </div>
+    <footer class="modal-footer">
+      <button type="button" class="secondary-btn" data-close>Cancel</button>
+      <button type="submit" class="primary-btn" id="pdf-password-submit" disabled>Open PDF</button>
+    </footer>`,
+  );
+  const input = modal.root.querySelector<HTMLInputElement>('#pdf-password')!;
+  const submit = modal.root.querySelector<HTMLButtonElement>('#pdf-password-submit')!;
+
+  input.addEventListener('input', () => (submit.disabled = input.value.length === 0));
+
+  return new Promise((resolve) => {
+    let password: string | null = null;
+    modal.root.addEventListener(
+      'close',
+      () => {
+        input.value = '';
+        resolve(password);
+      },
+      { once: true },
+    );
+    modal.root.querySelector('form')!.addEventListener('submit', () => {
+      if (!input.value) return;
+      password = input.value;
+      modal.close();
+    });
+    input.focus();
+  });
+}
 
 /* ------------------------------------------------------------------ insert */
 

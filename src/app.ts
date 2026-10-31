@@ -1,12 +1,12 @@
 import type { PDFDocument } from 'pdf-lib';
 import { zipSync } from 'fflate';
 import { clamp, displaySize, fromDisplay, toDisplay, totalRotation } from './core/geometry';
-import { buildPdf, createBlankPdf, createImagePdf, describePages, loadPdf } from './core/pdf';
+import { buildPdf, createBlankPdf, createImagePdf, decryptPdfBytes, describePages, EncryptedPdfError, loadPdf } from './core/pdf';
 import { formatPages } from './core/ranges';
 import { DocStore, insertPages, movePages, removePages, rotatePages } from './core/store';
 import type { DocState, PageRef, Signature } from './core/types';
 import { Renderer } from './render';
-import { openInsertDialog, openPrivacyDialog, openSplitDialog } from './ui/dialogs';
+import { openInsertDialog, openPdfPasswordDialog, openPrivacyDialog, openSplitDialog } from './ui/dialogs';
 import { $, downloadBlob, isTyping, pickFiles, toast, withBusy } from './ui/dom';
 import { icon } from './ui/icons';
 import { openSignaturePad } from './ui/signature';
@@ -67,7 +67,7 @@ export class App {
   private focusedSigId: string | null = null;
 
   private scale = ACTUAL_SIZE;
-  private fitWidth = true;
+  private fitWidth = false;
 
   private thumbEls = new Map<string, HTMLElement>();
   private pageEls = new Map<string, HTMLElement>();
@@ -132,12 +132,13 @@ export class App {
 
   /* ================================================================ files */
 
-  private async loadFile(file: File): Promise<PageRef[]> {
+  private async loadFile(file: File, password = ''): Promise<PageRef[]> {
     let bytes: Uint8Array = new Uint8Array(await file.arrayBuffer());
     const kind = sniff(bytes, file.type);
     if (kind === 'png' || kind === 'jpg') bytes = await createImagePdf(bytes, kind);
     else if (kind === 'image') bytes = await createImagePdf(await imageToPng(file), 'png');
     else if (kind !== 'pdf') throw new Error('is not a PDF or image');
+    bytes = await decryptPdfBytes(bytes, password);
     const doc = await loadPdf(bytes);
     if (doc.getPageCount() === 0) throw new Error('has no pages');
     const sourceId = uid('s');
@@ -147,22 +148,62 @@ export class App {
   }
 
   private async importFiles(files: File[]): Promise<PageRef[]> {
-    const results = await Promise.all(
-      files.map((file) =>
-        this.loadFile(file).catch((err: Error) => {
-          console.error(err);
-          const detail =
-            err.name === 'EncryptedPdfError'
-              ? 'is password-protected. Remove the password and try again.'
-              : /^(is|has) /.test(err.message)
-                ? err.message
-                : "couldn't be opened. Is it a valid PDF?";
-          toast(`“${file.name}” ${detail}`, 'error', 5000);
-          return [] as PageRef[];
-        }),
-      ),
+    const attempts = await Promise.all(
+      files.map(async (file) => {
+        try {
+          return { pages: await this.loadFile(file) };
+        } catch (error) {
+          return { error };
+        }
+      }),
     );
+    const results: PageRef[][] = [];
+
+    for (let index = 0; index < files.length; index++) {
+      const attempt = attempts[index];
+      if (attempt.pages !== undefined) {
+        results.push(attempt.pages);
+        continue;
+      }
+
+      let error: unknown = attempt.error;
+      let canceled = false;
+      while (error instanceof EncryptedPdfError && error.passwordRequired) {
+        const password = await openPdfPasswordDialog(files[index].name, error.incorrectPassword);
+        if (password === null) {
+          canceled = true;
+          break;
+        }
+        try {
+          results.push(await this.loadFile(files[index], password));
+          error = null;
+        } catch (retryError) {
+          error = retryError;
+        }
+      }
+
+      if (canceled) {
+        results.push([]);
+      } else if (error !== null) {
+        this.reportImportError(files[index], error);
+        results.push([]);
+      }
+    }
+
     return results.flat();
+  }
+
+  private reportImportError(file: File, error: unknown): void {
+    if (!(error instanceof EncryptedPdfError)) console.error(error);
+    const detail =
+      error instanceof EncryptedPdfError
+        ? error.passwordRequired
+          ? 'needs a valid password to open.'
+          : 'uses encryption this editor cannot process.'
+        : error instanceof Error && /^(is|has) /.test(error.message)
+          ? error.message
+          : "couldn't be opened. Is it a valid PDF?";
+    toast(`“${file.name}” ${detail}`, 'error', 5000);
   }
 
   /** Opens files as a new document (several files are merged in order). */
@@ -178,7 +219,8 @@ export class App {
         this.renderer.remove(id);
       }
       this.fileName = baseName(files[0].name);
-      this.fitWidth = true;
+      this.scale = ACTUAL_SIZE;
+      this.fitWidth = false;
       this.selection = new Set([pages[0].id]);
       this.anchorId = pages[0].id;
       this.currentId = pages[0].id;

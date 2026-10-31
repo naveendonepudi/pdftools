@@ -1,6 +1,7 @@
+import { encryptPDF } from '@pdfsmaller/pdf-encrypt';
 import { PDFDocument, PDFName, degrees } from 'pdf-lib';
 import { describe, expect, it } from 'vitest';
-import { buildPdf, createBlankPdf, createImagePdf, describePages, loadPdf } from './pdf';
+import { buildPdf, createBlankPdf, createImagePdf, decryptPdfBytes, describePages, loadPdf } from './pdf';
 import type { Signature } from './types';
 
 const PNG_1X1 =
@@ -98,5 +99,40 @@ describe('page factories', () => {
 describe('loadPdf', () => {
   it('rejects invalid data', async () => {
     await expect(loadPdf(new Uint8Array([1, 2, 3]))).rejects.toThrow();
+  });
+
+  it('opens PDFs encrypted with an empty user password and preserves form fields', async () => {
+    const source = await PDFDocument.create();
+    source.addPage([200, 300]);
+    source.getForm().createTextField('sample.name').setText('Example');
+    const encrypted = await encryptPDF(await source.save(), '', { ownerPassword: 'owner-secret' });
+
+    const loaded = await loadPdf(encrypted);
+
+    expect(loaded.getPageCount()).toBe(1);
+    expect(loaded.getForm().getTextField('sample.name').getText()).toBe('Example');
+  });
+
+  it('reports encrypted PDFs that require a password', async () => {
+    const encrypted = await encryptPDF(await createBlankPdf(), 'user-secret', { ownerPassword: 'owner-secret' });
+
+    await expect(loadPdf(encrypted)).rejects.toMatchObject({
+      name: 'EncryptedPdfError',
+      message: 'This PDF requires a password.',
+      passwordRequired: true,
+      incorrectPassword: false,
+    });
+    await expect(loadPdf(encrypted, 'wrong-password')).rejects.toMatchObject({
+      name: 'EncryptedPdfError',
+      passwordRequired: true,
+      incorrectPassword: true,
+    });
+    await expect(loadPdf(encrypted, 'user-secret')).resolves.toMatchObject({
+      getPageCount: expect.any(Function),
+    });
+    const decrypted = await decryptPdfBytes(encrypted, 'user-secret');
+    await expect(PDFDocument.load(decrypted)).resolves.toMatchObject({
+      getPageCount: expect.any(Function),
+    });
   });
 });
